@@ -45,3 +45,7 @@ AudioSocket normalises to fixed 8 kHz slin16 regardless of negotiated codec; Cha
 **D10 — Report cross-method and codec-degraded numbers on the main slide.**
 Every other team will show one flattering figure. The gap is our credibility.
 *Cost:* our headline number looks worse. That is the point.
+
+**D12 — Rolling 4 s window, 0.5 s hop, padded to 64600 samples.**
+AASIST has no fixed input length (`nb_samp` is a dataset-loader setting, not a model constraint), but it silently miscalibrates on short windows: measured ~2 pp score drift between a 1 s and a 4 s window, plus its eval-mode BatchNorm running stats were fitted on 4 s of context. Tiling a 1 s window up to 64600 produces yet another number with no guarantee it tracks the true 4 s score. Running at the published operating point (4.04 s ≈ 64600 samples) means the EER we measure describes the live system — and a confident-but-invalid score is the worst failure for a fraud detector. The 4 s buffer resamples 8→16 kHz to exactly 64000 samples; the 600-sample gap to `nb_samp` is closed by tiling, matching `clovaai/aasist data_utils.pad` (not zero-padding).
+*Cost:* no score for the first ~4 s of a call — detection lands around 5 s instead of ~1 s. Acceptable: a social-engineering call runs a minute or more, so blocking at ~5 s is still mid-call. During pre-roll the scorer emits `score: null` / state `OK` ("listening") so the dashboard shows a waiting state, not a flat zero line.

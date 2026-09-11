@@ -13,8 +13,9 @@ Two interchangeable audio sources feed one callback. The scorer cannot tell them
         same callback interface   8 kHz slin16, 20 ms frames
                 │
                 ▼
-        streaming_scorer.py     ring buffer → 1 s window / 0.5 s hop
-                │               ** 8 kHz → 16 kHz upsample here **
+        streaming_scorer.py     ring buffer → 4 s window / 0.5 s hop
+                │               ** 8 kHz → 16 kHz upsample + pad to nb_samp 64600 here **
+                │               (no score for the first ~4 s — emits score:null "listening")
                 ├──► acoustic.py   AASIST (16 kHz raw waveform)
                 ├──► prosody.py    F0 contour + pause/rhythm
                 └──► speaker.py    ECAPA cosine vs enrolled ref
@@ -50,8 +51,8 @@ REST: `POST /session` opens a scored session · `GET /session/{id}/risk` returns
 | AudioSocket port | 9092 | TCP, localhost |
 | Wire format | 3 B header (type + BE length) + payload | Payload is **little-endian** |
 | Audio frame | 0x10, 320 B, 20 ms | 8 kHz, 16-bit, mono |
-| Model input | **16 kHz** raw waveform | Upsample required — top integration risk |
-| Window / hop | 1.0 s / 0.5 s | Tune only if latency demands |
+| Model input | **16 kHz** raw waveform, **64600 samples** (AASIST nb_samp) | Upsample required — top integration risk. 4 s window → 64000 after resample → tile-pad to 64600 |
+| Window / hop | 4.0 s / 0.5 s | 4 s = AASIST's published operating point (see Decisions.md D12) |
 | Smoothing | EMA, α ≈ 0.3 | Raw scores flap and look broken |
 | Fusion weights | acoustic 0.60 · speaker 0.25 · prosody 0.15 | Hand-set, justified, never learned |
 

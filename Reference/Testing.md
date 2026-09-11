@@ -13,7 +13,7 @@ No test framework. No coverage target. These are the checks that stop the demo f
 | T4 | Codec transcode sanity | Listen to 5 files after G.711 and GSM round-trip | Speech, not noise. No agent can do this for you |
 | T5 | End-to-end | Live call → dashboard score moves | Score updates within ~1 s of speech |
 | T6 | Approval lock | Cross the escalate threshold | Button locks, call-back prompt appears |
-| T7 | No secrets committed | `git log -p \| Select-String "SUPABASE_ANON\|service_role"` | Nothing. `.env` is gitignored |
+| T7 | No secrets in tracked files | `Select-String -Path *.json,*.js,*.py -Pattern "SUPABASE_ANON|service_role"` | Only `.env` holds keys |
 
 ## Tier 2 — before rehearsal
 

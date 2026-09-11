@@ -11,7 +11,9 @@ Synthetic-voice detection for enterprise telephony. Live call audio → fused ri
 ## Pipeline
 **Primary input today: `file_feeder.py`** (ffmpeg-transcoded WAV streamed in real time). AudioSocket/Asterisk is a later, optional block — both feed the identical callback interface, so the scorer never knows which source it's reading.
 
-Asterisk (G.711 µ-law) → AudioSocket TCP :9092 → ring buffer (1 s window / 0.5 s hop) → **upsample 8→16 kHz** → three layers → fusion → context rules → EMA smoothing → thresholds → WebSocket → dashboard + approval UI.
+Asterisk (G.711 µ-law) → AudioSocket TCP :9092 → ring buffer (4 s window / 0.5 s hop) → **upsample 8→16 kHz, pad to AASIST nb_samp 64600** → three layers → fusion → context rules → EMA smoothing → thresholds → WebSocket → dashboard + approval UI.
+
+Window is 4 s, not 1 s: AASIST's published EER is measured on ~4 s clips; a shorter window runs but silently miscalibrates. Cost: no score for the first ~4 s (scorer emits `score: null` / state `OK` = "listening" until the buffer fills).
 
 | Layer | Model | Fusion weight |
 |---|---|---|
@@ -31,7 +33,7 @@ Asterisk (G.711 µ-law) → AudioSocket TCP :9092 → ring buffer (1 s window / 
 - **AudioSocket gives 8 kHz. AASIST needs 16 kHz. Always upsample before inference.** Any path skipping this is a bug. This is the highest-risk defect in the project.
 - Published AASIST: 0.83% EER (2019 LA) · 10.51% (2021 LA) · 21.07% (2021 DF). Our numbers should land near these.
 - Speaker embeddings lose 3–5× EER on narrowband. Enrol the reference **through the same codec path** as live audio.
-- EER by `scipy.optimize.brentq` interpolation, never `min(abs(fpr-fnr))`. Bona fide = positive class (1).
+- EER by `scipy.optimize.brentq` interpolation, never `min(abs(fpr-fnr))`. **Spoof = positive class (label 1); score = P(spoof)**, higher = more synthetic (matches the risk-score contract). `eval/compute_eer.py` warns if a run comes out inverted (EER > 50%).
 - Jitter and shimmer are unreliable at 8 kHz. Compute and display them; **weight them 0** in fusion.
 
 ## Hard rules
@@ -39,6 +41,7 @@ Asterisk (G.711 µ-law) → AudioSocket TCP :9092 → ring buffer (1 s window / 
 2. **Light theme only.** No dark mode, no toggle, no `prefers-color-scheme`.
 3. Fusion weights are module-level constants. Never learn, fit, or auto-tune them.
 4. No auth, multi-tenancy, Docker, cloud, or abstraction layers. Direct code.
+4b. **Never run git commands.** No init, no add, no commit, no branch. I handle version control myself.
 5. No dependencies outside `Tech-Stack.md` without asking.
 6. Ask one question if ambiguous. Do not guess and build.
 7. Do not refactor code you weren't asked to touch.
@@ -48,7 +51,6 @@ Asterisk (G.711 µ-law) → AudioSocket TCP :9092 → ring buffer (1 s window / 
 **Use freely:**
 - **Context7** — before writing any SpeechBrain, parselmouth, torchaudio, librosa, FastAPI or wavesurfer.js code, pull current docs. This is the single highest-value tool here; these libraries are exactly where APIs get hallucinated.
 - **Playwright** — verify UI behaviour, not just that it renders. "Does the approve button lock when state becomes ESCALATE" is a Playwright assertion, not an eyeball check.
-- **GitHub** — commits and repo ops.
 - **Postman** — exercise the REST endpoints and the WebSocket once `api.py` exists.
 
 - **Supabase** — hosted Postgres + realtime. Score points, sessions and transaction state live here; both UIs subscribe to realtime channels instead of a hand-built WebSocket fan-out.
